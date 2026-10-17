@@ -7,7 +7,7 @@ import SelfieModal from '@/components/SelfieModal';
 import {
   getCurrentUser,
   getAllAttendanceRecords,
-  SEED_USERS,
+  getAllStaff,
   getTodayDateString,
   getOfficeSettings,
 } from '@/lib/storage';
@@ -24,6 +24,8 @@ import {
   RefreshCw,
   MapPin,
   Clock,
+  Users2,
+  BarChart3,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -31,6 +33,7 @@ export default function AdminDashboardPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [office, setOffice] = useState<OfficeSettings | null>(null);
+  const [staffList, setStaffList] = useState<UserProfile[]>([]);
   const [allRecords, setAllRecords] = useState<AttendanceRecord[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
   const [activeModalRecord, setActiveModalRecord] = useState<AttendanceRecord | null>(null);
@@ -45,22 +48,21 @@ export default function AdminDashboardPage() {
     }
     setCurrentUser(user);
 
-    const [officeData, records] = await Promise.all([
+    const [officeData, records, staffData] = await Promise.all([
       getOfficeSettings(),
       getAllAttendanceRecords(),
+      getAllStaff(),
     ]);
 
     setOffice(officeData);
     setAllRecords(records);
+    setStaffList(staffData.filter((u) => u.role === 'staff'));
     setLoading(false);
   };
 
   useEffect(() => {
     loadData();
   }, [router]);
-
-  // Filter staff members (excluding admin)
-  const staffList = SEED_USERS.filter((u) => u.role === 'staff');
 
   // Filter attendance records for the selected date
   const dateRecords = allRecords.filter((r) => r.date === selectedDate);
@@ -117,11 +119,27 @@ export default function AdminDashboardPage() {
             </div>
 
             <Link
+              href="/admin/staff"
+              className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-700 hover:text-white transition"
+            >
+              <Users2 className="w-3.5 h-3.5 text-blue-400" />
+              <span>Staff Directory</span>
+            </Link>
+
+            <Link
+              href="/admin/reports"
+              className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-700 hover:text-white transition"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-indigo-400" />
+              <span>All Reports</span>
+            </Link>
+
+            <Link
               href="/admin/settings"
               className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-700 hover:text-white transition"
             >
               <Sliders className="w-3.5 h-3.5 text-blue-400" />
-              <span>Office Geofence</span>
+              <span>Geofence</span>
             </Link>
 
             <Link

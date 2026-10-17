@@ -2,10 +2,15 @@ export type UserRole = 'admin' | 'staff';
 
 export interface UserProfile {
   id: string;
-  email: string;
   full_name: string;
+  phone: string;
+  email: string;
   role: UserRole;
-  shift_start: string; // e.g. "09:00:00" or "09:00"
+  shift_start: string; // e.g. "09:00"
+  shift_end?: string;   // e.g. "18:00"
+  designation?: string; // e.g. "Sales Executive", "Accountant"
+  pin?: string;         // 4-digit PIN e.g. "1234"
+  created_at?: string;
 }
 
 export interface OfficeSettings {
@@ -22,6 +27,7 @@ export interface AttendanceRecord {
   id: string;
   user_id: string;
   user_name: string;
+  user_phone?: string;
   user_email: string;
   date: string; // YYYY-MM-DD
   shift_start: string;

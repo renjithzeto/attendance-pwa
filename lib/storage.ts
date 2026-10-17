@@ -3,33 +3,48 @@ import { supabase, isSupabaseConfigured } from './supabase';
 
 const DEFAULT_OFFICE: OfficeSettings = {
   name: 'Main Campus / Head Office',
-  latitude: 12.9716, // Default Bangalore coordinates or sample coordinates
+  latitude: 12.9716, // Default Bangalore coordinates
   longitude: 77.5946,
   radius_meters: 100, // 100 meters
   grace_period_mins: 15, // 15 mins grace period
 };
 
-export const SEED_USERS: UserProfile[] = [
+export const INITIAL_STAFF_MEMBERS: UserProfile[] = [
+  {
+    id: 'admin-1',
+    full_name: 'HR Admin Manager',
+    phone: '9999999999',
+    email: 'admin@company.com',
+    role: 'admin',
+    shift_start: '09:00',
+    shift_end: '18:00',
+    designation: 'Managing Director',
+    pin: '1234',
+    created_at: new Date().toISOString(),
+  },
   {
     id: 'staff-1',
-    email: 'staff1@company.com',
-    full_name: 'John Staff (Shift: 9:00 AM)',
+    full_name: 'Rahul Sharma',
+    phone: '9876543210',
+    email: 'rahul@company.com',
     role: 'staff',
     shift_start: '09:00',
+    shift_end: '18:00',
+    designation: 'Operations Lead',
+    pin: '1234',
+    created_at: new Date().toISOString(),
   },
   {
     id: 'staff-2',
-    email: 'staff2@company.com',
-    full_name: 'Sarah Connor (Shift: 8:30 AM)',
+    full_name: 'Priya Patel',
+    phone: '9123456789',
+    email: 'priya@company.com',
     role: 'staff',
     shift_start: '08:30',
-  },
-  {
-    id: 'admin-1',
-    email: 'admin@company.com',
-    full_name: 'HR Admin Manager',
-    role: 'admin',
-    shift_start: '09:00',
+    shift_end: '17:30',
+    designation: 'Executive Officer',
+    pin: '1234',
+    created_at: new Date().toISOString(),
   },
 ];
 
@@ -40,6 +55,113 @@ export function getTodayDateString(): string {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+// ----------------- Staff Directory Storage (Admin Created) -----------------
+const STAFF_LIST_KEY = 'attendance_staff_list_v2';
+
+export async function getAllStaff(): Promise<UserProfile[]> {
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!error && data && data.length > 0) {
+      return data.map((d: any) => ({
+        id: d.id,
+        full_name: d.full_name,
+        phone: d.phone || '',
+        email: d.email || '',
+        role: d.role,
+        shift_start: d.shift_start || '09:00',
+        shift_end: d.shift_end || '18:00',
+        designation: d.designation || 'Staff',
+        pin: d.pin || '1234',
+        created_at: d.created_at,
+      }));
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STAFF_LIST_KEY);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        // ignore
+      }
+    }
+    // Initialize with seed staff
+    localStorage.setItem(STAFF_LIST_KEY, JSON.stringify(INITIAL_STAFF_MEMBERS));
+  }
+  return INITIAL_STAFF_MEMBERS;
+}
+
+export async function addStaffMember(staff: Omit<UserProfile, 'id' | 'created_at'>): Promise<UserProfile> {
+  const newStaff: UserProfile = {
+    ...staff,
+    id: 'staff-' + Date.now(),
+    pin: staff.pin || '1234',
+    created_at: new Date().toISOString(),
+  };
+
+  if (isSupabaseConfigured && supabase) {
+    await supabase.from('profiles').insert({
+      id: newStaff.id,
+      full_name: newStaff.full_name,
+      phone: newStaff.phone,
+      email: newStaff.email,
+      role: newStaff.role,
+      shift_start: newStaff.shift_start,
+      shift_end: newStaff.shift_end,
+      designation: newStaff.designation,
+      pin: newStaff.pin,
+    });
+  }
+
+  if (typeof window !== 'undefined') {
+    const current = await getAllStaff();
+    const updated = [newStaff, ...current.filter((u) => u.id !== newStaff.id)];
+    localStorage.setItem(STAFF_LIST_KEY, JSON.stringify(updated));
+  }
+
+  return newStaff;
+}
+
+export async function updateStaffMember(staff: UserProfile): Promise<void> {
+  if (isSupabaseConfigured && supabase) {
+    await supabase
+      .from('profiles')
+      .update({
+        full_name: staff.full_name,
+        phone: staff.phone,
+        email: staff.email,
+        shift_start: staff.shift_start,
+        shift_end: staff.shift_end,
+        designation: staff.designation,
+        pin: staff.pin,
+      })
+      .eq('id', staff.id);
+  }
+
+  if (typeof window !== 'undefined') {
+    const current = await getAllStaff();
+    const updated = current.map((s) => (s.id === staff.id ? staff : s));
+    localStorage.setItem(STAFF_LIST_KEY, JSON.stringify(updated));
+  }
+}
+
+export async function deleteStaffMember(id: string): Promise<void> {
+  if (isSupabaseConfigured && supabase) {
+    await supabase.from('profiles').delete().eq('id', id);
+  }
+
+  if (typeof window !== 'undefined') {
+    const current = await getAllStaff();
+    const updated = current.filter((s) => s.id !== id);
+    localStorage.setItem(STAFF_LIST_KEY, JSON.stringify(updated));
+  }
 }
 
 // ----------------- Auth / Current User -----------------
@@ -55,8 +177,7 @@ export function getCurrentUser(): UserProfile | null {
       return null;
     }
   }
-  // Default to first staff in demo mode if not set
-  return SEED_USERS[0];
+  return null;
 }
 
 export function setCurrentUser(user: UserProfile | null): void {
@@ -66,6 +187,42 @@ export function setCurrentUser(user: UserProfile | null): void {
   } else {
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
   }
+}
+
+/**
+ * SalaryBox-style login: Authenticates by either Phone Number OR Email
+ * that was registered/created by the Admin.
+ */
+export async function authenticateByIdentifier(
+  identifier: string,
+  pin: string
+): Promise<{ success: boolean; user?: UserProfile; message?: string }> {
+  const cleanId = identifier.trim().toLowerCase().replace(/[\s-]/g, '');
+  const staffList = await getAllStaff();
+
+  const found = staffList.find((member) => {
+    const memberPhone = (member.phone || '').trim().replace(/[\s-]/g, '');
+    const memberEmail = (member.email || '').trim().toLowerCase();
+    return memberPhone === cleanId || memberEmail === cleanId;
+  });
+
+  if (!found) {
+    return {
+      success: false,
+      message: 'No account found with this phone number or email. Please ask your Admin to register you first.',
+    };
+  }
+
+  // Validate PIN (Default is 1234 if not customized)
+  const expectedPin = found.pin || '1234';
+  if (pin && pin !== expectedPin) {
+    return {
+      success: false,
+      message: 'Incorrect 4-digit PIN. (Default PIN is 1234).',
+    };
+  }
+
+  return { success: true, user: found };
 }
 
 // ----------------- Office Settings -----------------
@@ -92,7 +249,6 @@ export async function getOfficeSettings(): Promise<OfficeSettings> {
     }
   }
 
-  // LocalStorage Fallback
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem(SETTINGS_KEY);
     if (stored) {
@@ -150,7 +306,7 @@ export async function getAllAttendanceRecords(): Promise<AttendanceRecord[]> {
       .from('attendance_logs')
       .select(`
         *,
-        profiles:user_id (full_name, email, shift_start)
+        profiles:user_id (full_name, phone, email, shift_start)
       `)
       .order('punch_in_time', { ascending: false });
 
@@ -159,6 +315,7 @@ export async function getAllAttendanceRecords(): Promise<AttendanceRecord[]> {
         id: item.id,
         user_id: item.user_id,
         user_name: item.profiles?.full_name || 'Staff User',
+        user_phone: item.profiles?.phone || '',
         user_email: item.profiles?.email || '',
         date: item.date,
         shift_start: item.profiles?.shift_start || '09:00',
@@ -210,7 +367,6 @@ export async function savePunchIn(
 
   let finalSelfieUrl = params.selfieDataUrl;
 
-  // If Supabase configured, upload image to storage bucket
   if (isSupabaseConfigured && supabase) {
     try {
       const fileExt = 'jpg';
@@ -236,6 +392,7 @@ export async function savePunchIn(
     id: 'rec-' + Date.now(),
     user_id: user.id,
     user_name: user.full_name,
+    user_phone: user.phone,
     user_email: user.email,
     date: dateStr,
     shift_start: user.shift_start,
@@ -261,7 +418,6 @@ export async function savePunchIn(
     });
   }
 
-  // Also save to localStorage
   if (typeof window !== 'undefined') {
     const records = await getAllAttendanceRecords();
     const filtered = records.filter((r) => !(r.user_id === user.id && r.date === dateStr));
