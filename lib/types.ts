@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'staff';
+export type UserRole = 'admin' | 'manager' | 'supervisor' | 'staff';
 
 export interface UserProfile {
   id: string;
@@ -10,6 +10,7 @@ export interface UserProfile {
   shift_end?: string;   // e.g. "18:00"
   designation?: string; // e.g. "Sales Executive", "Accountant"
   pin?: string;         // 4-digit PIN e.g. "1234"
+  organization?: string;
   created_at?: string;
 }
 

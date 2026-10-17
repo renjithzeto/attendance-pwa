@@ -1,4 +1,4 @@
-import { UserProfile, OfficeSettings, AttendanceRecord } from './types';
+import { UserProfile, OfficeSettings, AttendanceRecord, UserRole } from './types';
 import { supabase, isSupabaseConfigured } from './supabase';
 
 const DEFAULT_OFFICE: OfficeSettings = {
@@ -18,7 +18,8 @@ export const INITIAL_STAFF_MEMBERS: UserProfile[] = [
     role: 'admin',
     shift_start: '09:00',
     shift_end: '18:00',
-    designation: 'Managing Director',
+    designation: 'Business Owner / Admin',
+    organization: 'Acme Corp',
     pin: '1234',
     created_at: new Date().toISOString(),
   },
@@ -27,10 +28,10 @@ export const INITIAL_STAFF_MEMBERS: UserProfile[] = [
     full_name: 'Rahul Sharma',
     phone: '9876543210',
     email: 'rahul@company.com',
-    role: 'staff',
+    role: 'manager',
     shift_start: '09:00',
     shift_end: '18:00',
-    designation: 'Operations Lead',
+    designation: 'Operations Manager',
     pin: '1234',
     created_at: new Date().toISOString(),
   },
@@ -42,7 +43,7 @@ export const INITIAL_STAFF_MEMBERS: UserProfile[] = [
     role: 'staff',
     shift_start: '08:30',
     shift_end: '17:30',
-    designation: 'Executive Officer',
+    designation: 'Field Executive',
     pin: '1234',
     created_at: new Date().toISOString(),
   },
@@ -58,7 +59,7 @@ export function getTodayDateString(): string {
 }
 
 // ----------------- Staff Directory Storage (Admin Created) -----------------
-const STAFF_LIST_KEY = 'attendance_staff_list_v2';
+const STAFF_LIST_KEY = 'attendance_staff_list_v3';
 
 export async function getAllStaff(): Promise<UserProfile[]> {
   if (isSupabaseConfigured && supabase) {
@@ -73,11 +74,12 @@ export async function getAllStaff(): Promise<UserProfile[]> {
         full_name: d.full_name,
         phone: d.phone || '',
         email: d.email || '',
-        role: d.role,
+        role: (d.role as UserRole) || 'staff',
         shift_start: d.shift_start || '09:00',
         shift_end: d.shift_end || '18:00',
         designation: d.designation || 'Staff',
         pin: d.pin || '1234',
+        organization: d.organization || '',
         created_at: d.created_at,
       }));
     }
@@ -96,6 +98,31 @@ export async function getAllStaff(): Promise<UserProfile[]> {
     localStorage.setItem(STAFF_LIST_KEY, JSON.stringify(INITIAL_STAFF_MEMBERS));
   }
   return INITIAL_STAFF_MEMBERS;
+}
+
+export async function hasAdminAccount(): Promise<boolean> {
+  const staff = await getAllStaff();
+  return staff.some((s) => s.role === 'admin');
+}
+
+export async function registerAdminAccount(data: {
+  full_name: string;
+  phone: string;
+  email: string;
+  organization: string;
+  pin: string;
+}): Promise<UserProfile> {
+  return addStaffMember({
+    full_name: data.full_name,
+    phone: data.phone,
+    email: data.email,
+    role: 'admin',
+    designation: 'Business Owner / Admin',
+    organization: data.organization,
+    shift_start: '09:00',
+    shift_end: '18:00',
+    pin: data.pin || '1234',
+  });
 }
 
 export async function addStaffMember(staff: Omit<UserProfile, 'id' | 'created_at'>): Promise<UserProfile> {
@@ -117,6 +144,7 @@ export async function addStaffMember(staff: Omit<UserProfile, 'id' | 'created_at
       shift_end: newStaff.shift_end,
       designation: newStaff.designation,
       pin: newStaff.pin,
+      organization: newStaff.organization,
     });
   }
 
@@ -137,10 +165,12 @@ export async function updateStaffMember(staff: UserProfile): Promise<void> {
         full_name: staff.full_name,
         phone: staff.phone,
         email: staff.email,
+        role: staff.role,
         shift_start: staff.shift_start,
         shift_end: staff.shift_end,
         designation: staff.designation,
         pin: staff.pin,
+        organization: staff.organization,
       })
       .eq('id', staff.id);
   }
@@ -195,7 +225,8 @@ export function setCurrentUser(user: UserProfile | null): void {
  */
 export async function authenticateByIdentifier(
   identifier: string,
-  pin: string
+  pin: string,
+  portalType: 'admin' | 'staff' = 'staff'
 ): Promise<{ success: boolean; user?: UserProfile; message?: string }> {
   const cleanId = identifier.trim().toLowerCase().replace(/[\s-]/g, '');
   const staffList = await getAllStaff();
@@ -211,6 +242,16 @@ export async function authenticateByIdentifier(
       success: false,
       message: 'No account found with this phone number or email. Please ask your Admin to register you first.',
     };
+  }
+
+  // Check portal permissions
+  if (portalType === 'admin') {
+    if (found.role !== 'admin' && found.role !== 'manager') {
+      return {
+        success: false,
+        message: `Access denied: This phone number is registered as "${found.role.toUpperCase()}". Please switch to the Staff Portal tab to punch in.`,
+      };
+    }
   }
 
   // Validate PIN (Default is 1234 if not customized)

@@ -10,7 +10,7 @@ import {
   updateStaffMember,
   deleteStaffMember,
 } from '@/lib/storage';
-import { UserProfile } from '@/lib/types';
+import { UserProfile, UserRole } from '@/lib/types';
 import {
   Users2,
   UserPlus,
@@ -27,6 +27,7 @@ import {
   ShieldCheck,
   Search,
   Copy,
+  ShieldAlert,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -44,6 +45,7 @@ export default function StaffManagementPage() {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [role, setRole] = useState<UserRole>('staff');
   const [designation, setDesignation] = useState('');
   const [shiftStart, setShiftStart] = useState('09:00');
   const [shiftEnd, setShiftEnd] = useState('18:00');
@@ -54,7 +56,7 @@ export default function StaffManagementPage() {
   const loadData = async () => {
     setLoading(true);
     const user = getCurrentUser();
-    if (!user || user.role !== 'admin') {
+    if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
       router.replace('/login');
       return;
     }
@@ -72,6 +74,7 @@ export default function StaffManagementPage() {
     setFullName('');
     setPhone('');
     setEmail('');
+    setRole('staff');
     setDesignation('');
     setShiftStart('09:00');
     setShiftEnd('18:00');
@@ -85,6 +88,7 @@ export default function StaffManagementPage() {
     setFullName(staff.full_name);
     setPhone(staff.phone || '');
     setEmail(staff.email || '');
+    setRole(staff.role || 'staff');
     setDesignation(staff.designation || '');
     setShiftStart(staff.shift_start || '09:00');
     setShiftEnd(staff.shift_end || '18:00');
@@ -113,6 +117,7 @@ export default function StaffManagementPage() {
           full_name: fullName.trim(),
           phone: phone.trim(),
           email: email.trim().toLowerCase(),
+          role,
           designation: designation.trim() || 'Staff',
           shift_start: shiftStart,
           shift_end: shiftEnd,
@@ -123,7 +128,7 @@ export default function StaffManagementPage() {
           full_name: fullName.trim(),
           phone: phone.trim(),
           email: email.trim().toLowerCase() || `${phone.trim()}@company.com`,
-          role: 'staff',
+          role,
           designation: designation.trim() || 'Staff',
           shift_start: shiftStart,
           shift_end: shiftEnd,
@@ -145,7 +150,7 @@ export default function StaffManagementPage() {
   };
 
   const handleCopyCredentials = (staff: UserProfile) => {
-    const text = `WorkPulse Attendance Login:\nPhone: ${staff.phone}\nPIN: ${staff.pin || '1234'}\nLink: ${window.location.origin}/login`;
+    const text = `WorkPulse Attendance Login:\nPhone: ${staff.phone}\nRole: ${staff.role.toUpperCase()}\nPIN: ${staff.pin || '1234'}\nLink: ${window.location.origin}/login`;
     navigator.clipboard.writeText(text);
     setCopiedId(staff.id);
     setTimeout(() => setCopiedId(null), 2500);
@@ -157,7 +162,8 @@ export default function StaffManagementPage() {
       s.full_name.toLowerCase().includes(q) ||
       (s.phone && s.phone.includes(q)) ||
       (s.email && s.email.toLowerCase().includes(q)) ||
-      (s.designation && s.designation.toLowerCase().includes(q))
+      (s.designation && s.designation.toLowerCase().includes(q)) ||
+      (s.role && s.role.toLowerCase().includes(q))
     );
   });
 
@@ -177,10 +183,10 @@ export default function StaffManagementPage() {
             </Link>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
               <Users2 className="w-6 h-6 text-blue-400" />
-              Staff Directory & Registrations
+              Staff Directory & Role Management
             </h1>
             <p className="text-xs text-slate-400">
-              Add employees so they can log in via their phone number or email to punch in.
+              Create and manage staff profiles, assign roles (Staff, Manager, Supervisor, Admin), and configure shift hours.
             </p>
           </div>
 
@@ -189,7 +195,7 @@ export default function StaffManagementPage() {
             className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500 transition"
           >
             <UserPlus className="w-4 h-4" />
-            <span>Add New Staff</span>
+            <span>Add Staff / Manager</span>
           </button>
         </div>
 
@@ -201,12 +207,12 @@ export default function StaffManagementPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by name, phone, email, or role..."
+              placeholder="Search by name, phone, role, or title..."
               className="w-full rounded-xl border border-slate-800 bg-slate-900 py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
             />
           </div>
           <div className="text-xs text-slate-400">
-            Total Registered: <strong className="text-white">{staffList.length}</strong> (Active)
+            Total Team Members: <strong className="text-white">{staffList.length}</strong>
           </div>
         </div>
 
@@ -222,26 +228,34 @@ export default function StaffManagementPage() {
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
                     {staff.full_name}
-                    {staff.role === 'admin' && (
-                      <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">
-                        Admin
-                      </span>
-                    )}
+                    <span
+                      className={`text-[9px] uppercase font-extrabold px-1.5 py-0.5 rounded border ${
+                        staff.role === 'admin'
+                          ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                          : staff.role === 'manager'
+                          ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30'
+                          : staff.role === 'supervisor'
+                          ? 'bg-teal-500/20 text-teal-400 border-teal-500/30'
+                          : 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                      }`}
+                    >
+                      {staff.role}
+                    </span>
                   </h3>
-                  <span className="text-[11px] text-blue-400 font-medium">
+                  <span className="text-[11px] text-slate-400 font-medium">
                     {staff.designation || 'Staff'}
                   </span>
                 </div>
 
-                {staff.role !== 'admin' && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => openEditModal(staff)}
-                      title="Edit Profile"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => openEditModal(staff)}
+                    title="Edit Profile"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                  {staffList.filter((s) => s.role === 'admin').length > 1 || staff.role !== 'admin' ? (
                     <button
                       onClick={() => handleDelete(staff.id, staff.full_name)}
                       title="Remove Staff"
@@ -249,8 +263,8 @@ export default function StaffManagementPage() {
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
-                  </div>
-                )}
+                  ) : null}
+                </div>
               </div>
 
               {/* Contact & Shift Info */}
@@ -299,7 +313,7 @@ export default function StaffManagementPage() {
             <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4 bg-slate-950">
               <h2 className="text-sm font-bold text-white flex items-center gap-2">
                 <UserPlus className="w-4 h-4 text-blue-400" />
-                {editingStaff ? 'Edit Staff Profile' : 'Register New Staff Member'}
+                {editingStaff ? 'Edit Team Profile' : 'Add New Team Member'}
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -310,7 +324,7 @@ export default function StaffManagementPage() {
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSaveStaff} className="p-5 space-y-4">
+            <form onSubmit={handleSaveStaff} className="p-5 space-y-3.5">
               {formError && (
                 <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-2.5 text-xs text-rose-300">
                   {formError}
@@ -319,7 +333,7 @@ export default function StaffManagementPage() {
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                  Employee Full Name *
+                  Full Name *
                 </label>
                 <input
                   type="text"
@@ -329,6 +343,38 @@ export default function StaffManagementPage() {
                   placeholder="e.g. Ramesh Kumar"
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
                 />
+              </div>
+
+              {/* Role Selection Dropdown */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    Assigned Role *
+                  </label>
+                  <select
+                    value={role}
+                    onChange={(e) => setRole(e.target.value as UserRole)}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="staff">Staff (Standard Punch-In)</option>
+                    <option value="manager">Manager (Reports & Team)</option>
+                    <option value="supervisor">Supervisor (Site Lead)</option>
+                    <option value="admin">Admin (Full Control)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    Designation / Title
+                  </label>
+                  <input
+                    type="text"
+                    value={designation}
+                    onChange={(e) => setDesignation(e.target.value)}
+                    placeholder="e.g. Sales Lead"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -361,32 +407,17 @@ export default function StaffManagementPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="staff@company.com"
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                    Designation / Title
-                  </label>
-                  <input
-                    type="text"
-                    value={designation}
-                    onChange={(e) => setDesignation(e.target.value)}
-                    placeholder="e.g. Sales Officer"
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  Email Address (Optional)
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="employee@company.com"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
+                />
               </div>
 
               {/* Shift Hours */}
@@ -430,7 +461,7 @@ export default function StaffManagementPage() {
                   type="submit"
                   className="flex-1 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500"
                 >
-                  {editingStaff ? 'Update Profile' : 'Save & Register Staff'}
+                  {editingStaff ? 'Update Profile' : 'Save & Register Member'}
                 </button>
               </div>
             </form>
